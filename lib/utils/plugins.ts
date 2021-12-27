@@ -1,6 +1,6 @@
 // eslint-disable-next-line eslint-comments/disable-enable-pair
 /* eslint-disable @typescript-eslint/no-unsafe-return */
-import {remote} from 'electron';
+import {require as remoteRequire} from '@electron/remote';
 // TODO: Should be updates to new async API https://medium.com/@nornagon/electrons-remote-module-considered-harmful-70d69500f31
 
 import {connect as reduxConnect, Options} from 'react-redux';
@@ -28,9 +28,11 @@ import {
 } from '../hyper';
 import {Middleware} from 'redux';
 import {ObjectTypedKeys} from './object';
+import IPCChildProcess from './ipc-child-process';
+import ChildProcess from 'child_process';
 
 // remote interface to `../plugins`
-const plugins = remote.require('./plugins') as typeof import('../../app/plugins');
+const plugins = remoteRequire('./plugins') as typeof import('../../app/plugins');
 
 // `require`d modules
 let modules: hyperPlugin[];
@@ -182,6 +184,8 @@ Module._load = function _load(path: string) {
       return Notification;
     case 'hyper/decorate':
       return decorate;
+    case 'child_process':
+      return process.platform === 'darwin' ? IPCChildProcess : ChildProcess;
     default:
       // eslint-disable-next-line prefer-rest-params
       return originalLoad.apply(this, arguments);

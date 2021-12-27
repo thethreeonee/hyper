@@ -34,6 +34,7 @@ export type configOptions = {
   cursorColor: string;
   cursorShape: 'BEAM' | 'UNDERLINE' | 'BLOCK';
   defaultSSHApp: boolean;
+  disableAutoUpdates: boolean;
   disableLigatures: boolean;
   env: Record<string, string>;
   fontFamily: string;
@@ -50,6 +51,7 @@ export type configOptions = {
   };
   padding: string;
   quickEdit: boolean;
+  screenReaderMode: boolean;
   scrollback: number;
   selectionColor: string;
   shell: string;

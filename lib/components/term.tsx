@@ -77,7 +77,8 @@ const getTermOptions = (props: TermProps): ITerminalOptions => {
       brightMagenta: props.colors.lightMagenta,
       brightCyan: props.colors.lightCyan,
       brightWhite: props.colors.lightWhite
-    }
+    },
+    screenReaderMode: props.screenReaderMode
   };
 };
 
@@ -176,7 +177,7 @@ export default class Term extends React.PureComponent<TermProps> {
       if (useWebGL) {
         this.term.loadAddon(new WebglAddon());
       }
-      if (props.disableLigatures !== true) {
+      if (props.disableLigatures !== true && !useWebGL) {
         this.term.loadAddon(new LigaturesAddon());
       }
       this.term.loadAddon(new Unicode11Addon());
@@ -262,8 +263,7 @@ export default class Term extends React.PureComponent<TermProps> {
     if (processed) {
       e.preventDefault();
       e.stopPropagation();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      (this.term as any)._core.handler(processed);
+      this.term.paste(processed);
     }
   };
 
@@ -353,7 +353,8 @@ export default class Term extends React.PureComponent<TermProps> {
       .forEach((option) => {
         try {
           this.term.setOption(option, nextTermOptions[option]);
-        } catch (e) {
+        } catch (_e) {
+          const e = _e as {message: string};
           if (/The webgl renderer only works with the webgl char atlas/i.test(e.message)) {
             // Ignore this because the char atlas will also be changed
           } else {

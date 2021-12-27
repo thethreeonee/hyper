@@ -148,7 +148,7 @@ module.exports = {
 
     // Whether to use the WebGL renderer. Set it to false to use canvas-based
     // rendering (slower, but supports transparent backgrounds)
-    webGLRenderer: false,
+    webGLRenderer: true,
 
     // keypress required for weblink activation: [ctrl|alt|meta|shift]
     // todo: does not pick up config changes automatically, need to restart terminal :/
@@ -156,6 +156,12 @@ module.exports = {
 
     // if `false` (without backticks and without quotes), Hyper will use ligatures provided by some fonts
     disableLigatures: true,
+
+    // set to true to disable auto updates
+    disableAutoUpdates: false,
+
+    // set to true to enable screen reading apps (like NVDA) to read the contents of the terminal
+    screenReaderMode: false,
 
     // for advanced config flags please refer to https://hyper.is/#cfg
   },
