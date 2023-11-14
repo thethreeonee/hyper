@@ -1,19 +1,19 @@
 // eslint-disable-next-line eslint-comments/disable-enable-pair
 /* eslint-disable @typescript-eslint/no-unsafe-return */
+import ChildProcess from 'child_process';
+import pathModule from 'path';
+
+import React, {PureComponent} from 'react';
+import type {ComponentType} from 'react';
+
 import {require as remoteRequire} from '@electron/remote';
 // TODO: Should be updates to new async API https://medium.com/@nornagon/electrons-remote-module-considered-harmful-70d69500f31
-
-import {connect as reduxConnect, Options} from 'react-redux';
-import {basename} from 'path';
-
-// patching Module._load
-// so plugins can `require` them without needing their own version
-// https://github.com/vercel/hyper/issues/619
-import React, {PureComponent} from 'react';
 import ReactDOM from 'react-dom';
-import Notification from '../components/notification';
-import notify from './notify';
-import {
+import {connect as reduxConnect} from 'react-redux';
+import type {ConnectOptions} from 'react-redux/es/components/connect';
+import type {Dispatch, Middleware} from 'redux';
+
+import type {
   hyperPlugin,
   IUiReducer,
   ISessionReducer,
@@ -24,12 +24,14 @@ import {
   TabsProps,
   TermGroupOwnProps,
   TermProps,
-  Assignable
-} from '../hyper';
-import {Middleware} from 'redux';
-import {ObjectTypedKeys} from './object';
+  Assignable,
+  HyperActions
+} from '../../typings/hyper';
+import Notification from '../components/notification';
+
 import IPCChildProcess from './ipc-child-process';
-import ChildProcess from 'child_process';
+import notify from './notify';
+import {ObjectTypedKeys} from './object';
 
 // remote interface to `../plugins`
 const plugins = remoteRequire('./plugins') as typeof import('../../app/plugins');
@@ -91,7 +93,10 @@ function exposeDecorated<P extends Record<string, any>>(
   };
 }
 
-function getDecorated<P>(parent: React.ComponentType<P>, name: string): React.ComponentClass<P> {
+function getDecorated<P extends Record<string, any>>(
+  parent: React.ComponentType<P>,
+  name: string
+): React.ComponentClass<P> {
   if (!decorated[name]) {
     let class_ = exposeDecorated(parent);
     (class_ as any).displayName = `_exposeDecorated(${name})`;
@@ -136,7 +141,7 @@ function getDecorated<P>(parent: React.ComponentType<P>, name: string): React.Co
 // for each component, we return a higher-order component
 // that wraps with the higher-order components
 // exposed by plugins
-export function decorate<P>(
+export function decorate<P extends Record<string, any>>(
   Component_: React.ComponentType<P>,
   name: string
 ): React.ComponentClass<P, {hasError: boolean}> {
@@ -160,6 +165,9 @@ export function decorate<P>(
   };
 }
 
+// patching Module._load
+// so plugins can `require` them without needing their own version
+// https://github.com/vercel/hyper/issues/619
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Module = require('module') as typeof import('module') & {_load: Function};
 const originalLoad = Module._load;
@@ -213,12 +221,10 @@ const clearModulesCache = () => {
   }
 };
 
-const pathModule = window.require('path') as typeof import('path');
-
 const getPluginName = (path: string) => pathModule.basename(path);
 
 const getPluginVersion = (path: string): string | null => {
-  let version = null;
+  let version: string | null = null;
   try {
     version = window.require(pathModule.resolve(path, 'package.json')).version as string;
   } catch (err) {
@@ -263,7 +269,7 @@ const loadModules = () => {
   const loadedPlugins = plugins.getLoadedPluginVersions().map((plugin: any) => plugin.name);
   modules = paths.plugins
     .concat(paths.localPlugins)
-    .filter((plugin) => loadedPlugins.indexOf(basename(plugin)) !== -1)
+    .filter((plugin) => loadedPlugins.indexOf(pathModule.basename(plugin)) !== -1)
     .map((path) => {
       let mod: hyperPlugin;
       const pluginName = getPluginName(path);
@@ -450,15 +456,18 @@ export function getTabProps<T extends Assignable<TabProps, T>>(tab: any, parentP
 // connects + decorates a class
 // plugins can override mapToState, dispatchToProps
 // and the class gets decorated (proxied)
-export function connect<stateProps, dispatchProps>(
+export function connect<stateProps extends {}, dispatchProps>(
   stateFn: (state: HyperState) => stateProps,
   dispatchFn: (dispatch: HyperDispatch) => dispatchProps,
-  c: any,
-  d: Options = {}
+  c: null | undefined,
+  d: ConnectOptions = {}
 ) {
-  return (Class: any, name: keyof typeof connectors) => {
-    return reduxConnect<stateProps, dispatchProps, any, HyperState>(
-      (state) => {
+  return <P extends Record<string, unknown>>(
+    Class: ComponentType<P & stateProps & dispatchProps>,
+    name: keyof typeof connectors
+  ) => {
+    return reduxConnect(
+      (state: HyperState) => {
         let ret = stateFn(state);
         connectors[name].state.forEach((fn) => {
           let ret_;
@@ -484,7 +493,7 @@ export function connect<stateProps, dispatchProps>(
         });
         return ret;
       },
-      (dispatch) => {
+      (dispatch: HyperDispatch) => {
         let ret = dispatchFn(dispatch);
         connectors[name].dispatch.forEach((fn) => {
           let ret_;
@@ -515,7 +524,7 @@ export function connect<stateProps, dispatchProps>(
       },
       c,
       d
-    )(decorate(Class, name));
+    )(decorate(Class, name) as any) as ComponentType<P>;
   };
 }
 
@@ -567,7 +576,7 @@ export function decorateSessionsReducer(fn: ISessionReducer) {
 }
 
 // redux middleware generator
-export const middleware: Middleware = (store) => (next) => (action) => {
+export const middleware: Middleware<{}, HyperState, Dispatch<HyperActions>> = (store) => (next) => (action) => {
   const nextMiddleware = (remaining: Middleware[]) => (action_: any) =>
     remaining.length ? remaining[0](store)(nextMiddleware(remaining.slice(1)))(action_) : next(action_);
   nextMiddleware(middlewares)(action);

@@ -1,5 +1,5 @@
 import Immutable from 'seamless-immutable';
-import {decorateSessionsReducer} from '../utils/plugins';
+
 import {
   SESSION_ADD,
   SESSION_PTY_EXIT,
@@ -10,10 +10,10 @@ import {
   SESSION_RESIZE,
   SESSION_SET_XTERM_TITLE,
   SESSION_SET_CWD,
-  SESSION_SEARCH,
-  SESSION_SEARCH_CLOSE
-} from '../constants/sessions';
-import {sessionState, session, Mutable, ISessionReducer} from '../hyper';
+  SESSION_SEARCH
+} from '../../typings/constants/sessions';
+import type {sessionState, session, Mutable, ISessionReducer} from '../../typings/hyper';
+import {decorateSessionsReducer} from '../utils/plugins';
 
 const initialState: sessionState = Immutable<Mutable<sessionState>>({
   sessions: {},
@@ -26,17 +26,17 @@ function Session(obj: Immutable.DeepPartial<session>) {
     title: '',
     cols: null,
     rows: null,
-    url: null,
     cleared: false,
     search: false,
     shell: '',
-    pid: null
+    pid: null,
+    profile: ''
   };
   return Immutable(x).merge(obj);
 }
 
 function deleteSession(state: sessionState, uid: string) {
-  return state.updateIn(['sessions'], (sessions: typeof state['sessions']) => {
+  return state.updateIn(['sessions'], (sessions: (typeof state)['sessions']) => {
     const sessions_ = sessions.asMutable();
     delete sessions_[uid];
     return sessions_;
@@ -53,7 +53,8 @@ const reducer: ISessionReducer = (state = initialState, action) => {
           rows: action.rows,
           uid: action.uid,
           shell: action.shell ? action.shell.split('/').pop() : null,
-          pid: action.pid
+          pid: action.pid,
+          profile: action.profile
         })
       );
 
@@ -61,10 +62,7 @@ const reducer: ISessionReducer = (state = initialState, action) => {
       return state.set('activeUid', action.uid);
 
     case SESSION_SEARCH:
-      return state.setIn(['sessions', action.uid, 'search'], !state.sessions[action.uid].search);
-
-    case SESSION_SEARCH_CLOSE:
-      return state.setIn(['sessions', action.uid, 'search'], false);
+      return state.setIn(['sessions', action.uid, 'search'], action.value);
 
     case SESSION_CLEAR_ACTIVE:
       return state.merge(

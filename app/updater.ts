@@ -1,13 +1,15 @@
 // Packages
-import electron, {app, BrowserWindow, AutoUpdater} from 'electron';
-import ms from 'ms';
+import electron, {app} from 'electron';
+import type {BrowserWindow, AutoUpdater} from 'electron';
+
 import retry from 'async-retry';
+import ms from 'ms';
 
 // Utilities
+import autoUpdaterLinux from './auto-updater-linux';
+import {getDefaultProfile} from './config';
 import {version} from './package.json';
 import {getDecoratedConfig} from './plugins';
-import autoUpdaterLinux from './auto-updater-linux';
-import {execSync} from 'child_process';
 
 const {platform} = process;
 const isLinux = platform === 'linux';
@@ -16,7 +18,7 @@ const autoUpdater: AutoUpdater = isLinux ? autoUpdaterLinux : electron.autoUpdat
 
 const getDecoratedConfigWithRetry = async () => {
   return await retry(() => {
-    const content = getDecoratedConfig();
+    const content = getDecoratedConfig(getDefaultProfile());
     if (!content) {
       throw new Error('No config content loaded');
     }
@@ -35,24 +37,9 @@ let isInit = false;
 // Default to the "stable" update channel
 let canaryUpdates = false;
 
-// Detect if we are running inside Rosetta emulation
-const isRosetta = () => {
-  if (platform !== 'darwin') {
-    return false;
-  }
-  const sysctlRosettaInfoKey = 'sysctl.proc_translated';
-  let results = '';
-  try {
-    results = execSync(`sysctl ${sysctlRosettaInfoKey}`).toString();
-  } catch (error) {
-    console.log('Failed to detect Rosetta');
-  }
-  return results.includes(`${sysctlRosettaInfoKey}: 1`);
-};
-
 const buildFeedUrl = (canary: boolean, currentVersion: string) => {
   const updatePrefix = canary ? 'releases-canary' : 'releases';
-  const archSuffix = process.arch === 'arm64' || isRosetta() ? '_arm64' : '';
+  const archSuffix = process.arch === 'arm64' || app.runningUnderARM64Translation ? '_arm64' : '';
   return `https://${updatePrefix}.hyper.is/update/${isLinux ? 'deb' : platform}${archSuffix}/${currentVersion}`;
 };
 
@@ -85,28 +72,23 @@ async function init() {
   isInit = true;
 }
 
-export default (win: BrowserWindow) => {
+const updater = (win: BrowserWindow) => {
   if (!isInit) {
     void init();
   }
 
   const {rpc} = win;
 
-  const onupdate = (
-    ev: Event,
-    releaseNotes: string,
-    releaseName: string,
-    date: Date,
-    updateUrl: string,
-    onQuitAndInstall: any
-  ) => {
+  const onupdate = (ev: Event, releaseNotes: string, releaseName: string, date: Date, updateUrl: string) => {
     const releaseUrl = updateUrl || `https://github.com/vercel/hyper/releases/tag/${releaseName}`;
-    rpc.emit('update available', {releaseNotes, releaseName, releaseUrl, canInstall: !!onQuitAndInstall});
+    rpc.emit('update available', {releaseNotes, releaseName, releaseUrl, canInstall: !isLinux});
   };
 
-  const eventName: any = isLinux ? 'update-available' : 'update-downloaded';
-
-  autoUpdater.on(eventName, onupdate);
+  if (isLinux) {
+    autoUpdater.on('update-available', onupdate);
+  } else {
+    autoUpdater.on('update-downloaded', onupdate);
+  }
 
   rpc.once('quit and install', () => {
     autoUpdater.quitAndInstall();
@@ -127,6 +109,12 @@ export default (win: BrowserWindow) => {
   });
 
   win.on('close', () => {
-    autoUpdater.removeListener(eventName, onupdate);
+    if (isLinux) {
+      autoUpdater.removeListener('update-available', onupdate);
+    } else {
+      autoUpdater.removeListener('update-downloaded', onupdate);
+    }
   });
 };
+
+export default updater;

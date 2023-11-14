@@ -1,10 +1,11 @@
 // Native
 import path from 'path';
-import fs from 'fs-extra';
 
 // Packages
 import test from 'ava';
-import {_electron, ElectronApplication} from 'playwright';
+import fs from 'fs-extra';
+import {_electron} from 'playwright';
+import type {ElectronApplication} from 'playwright';
 
 let app: ElectronApplication;
 
@@ -37,15 +38,12 @@ test.before(async () => {
 
 test.after(async () => {
   await app
-    .evaluate(async ({BrowserWindow, desktopCapturer, screen}) => {
-      // eslint-disable-next-line prefer-const
-      let {width, height, ...position} = BrowserWindow.getFocusedWindow()!.getBounds();
-      const {scaleFactor} = screen.getDisplayNearestPoint(position);
-      width *= scaleFactor;
-      height *= scaleFactor;
-      const sources = await desktopCapturer.getSources({types: ['window'], thumbnailSize: {width, height}});
-      return sources[0].thumbnail.toPNG().toString('base64');
-    })
+    .evaluate(
+      ({BrowserWindow}) =>
+        BrowserWindow.getFocusedWindow()
+          ?.capturePage()
+          .then((img) => img.toPNG().toString('base64'))
+    )
     .then((img) => Buffer.from(img || '', 'base64'))
     .then(async (imageBuffer) => {
       await fs.writeFile(`dist/tmp/${process.platform}_test.png`, imageBuffer);
@@ -54,5 +52,5 @@ test.after(async () => {
 });
 
 test('see if dev tools are open', async (t) => {
-  t.false(await app.evaluate(({webContents}) => webContents.getFocusedWebContents().isDevToolsOpened()));
+  t.false(await app.evaluate(({webContents}) => !!webContents.getFocusedWebContents()?.isDevToolsOpened()));
 });

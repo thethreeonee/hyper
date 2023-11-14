@@ -1,6 +1,4 @@
-import rpc from '../rpc';
-import {keys} from '../utils/object';
-import findBySession from '../utils/term-groups';
+import type {Session} from '../../typings/common';
 import {
   SESSION_ADD,
   SESSION_RESIZE,
@@ -13,12 +11,14 @@ import {
   SESSION_CLEAR_ACTIVE,
   SESSION_USER_DATA,
   SESSION_SET_XTERM_TITLE,
-  SESSION_SEARCH,
-  SESSION_SEARCH_CLOSE
-} from '../constants/sessions';
-import {HyperState, session, HyperDispatch, HyperActions} from '../hyper';
+  SESSION_SEARCH
+} from '../../typings/constants/sessions';
+import type {HyperState, HyperDispatch, HyperActions} from '../../typings/hyper';
+import rpc from '../rpc';
+import {keys} from '../utils/object';
+import findBySession from '../utils/term-groups';
 
-export function addSession({uid, shell, pid, cols, rows, splitDirection, activeUid}: session) {
+export function addSession({uid, shell, pid, cols = null, rows = null, splitDirection, activeUid, profile}: Session) {
   return (dispatch: HyperDispatch, getState: () => HyperState) => {
     const {sessions} = getState();
     const now = Date.now();
@@ -31,20 +31,20 @@ export function addSession({uid, shell, pid, cols, rows, splitDirection, activeU
       rows,
       splitDirection,
       activeUid: activeUid ? activeUid : sessions.activeUid,
-      now
+      now,
+      profile
     });
   };
 }
 
-export function requestSession() {
+export function requestSession(profile: string | undefined) {
   return (dispatch: HyperDispatch, getState: () => HyperState) => {
     dispatch({
       type: SESSION_REQUEST,
       effect: () => {
         const {ui} = getState();
-        // the cols and rows from preview session maybe not accurate. so remove.
-        const {/*cols, rows,*/ cwd} = ui;
-        rpc.emit('new', {cwd});
+        const {cwd} = ui;
+        rpc.emit('new', {cwd, profile});
       }
     });
   };
@@ -135,12 +135,13 @@ export function resizeSession(uid: string, cols: number, rows: number) {
   };
 }
 
-export function onSearch(uid?: string) {
+export function openSearch(uid?: string) {
   return (dispatch: HyperDispatch, getState: () => HyperState) => {
     const targetUid = uid || getState().sessions.activeUid!;
     dispatch({
       type: SESSION_SEARCH,
-      uid: targetUid
+      uid: targetUid,
+      value: true
     });
   };
 }
@@ -150,8 +151,9 @@ export function closeSearch(uid?: string, keyEvent?: any) {
     const targetUid = uid || getState().sessions.activeUid!;
     if (getState().sessions.sessions[targetUid]?.search) {
       dispatch({
-        type: SESSION_SEARCH_CLOSE,
-        uid: targetUid
+        type: SESSION_SEARCH,
+        uid: targetUid,
+        value: false
       });
     } else {
       if (keyEvent) {
@@ -161,7 +163,7 @@ export function closeSearch(uid?: string, keyEvent?: any) {
   };
 }
 
-export function sendSessionData(uid: string | null, data: any, escaped?: boolean | null) {
+export function sendSessionData(uid: string | null, data: string, escaped?: boolean) {
   return (dispatch: HyperDispatch, getState: () => HyperState) => {
     dispatch({
       type: SESSION_USER_DATA,

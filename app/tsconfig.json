@@ -2,10 +2,13 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "declarationDir": "../dist/tmp/appdts/",
-    "outDir": "../target/"
+    "outDir": "../target/",
+    "noImplicitAny": false
   },
   "include": [
     "./**/*",
-    "./package.json"
+    "./package.json",
+    "../typings/extend-electron.d.ts",
+    "../typings/ext-modules.d.ts"
   ]
 }
